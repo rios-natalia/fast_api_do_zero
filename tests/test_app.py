@@ -3,8 +3,10 @@ from http import HTTPStatus
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from fast_zero.app import app, check_user_exists
+from fast_zero.models import User
 
 
 def test_create_user(client, default_user):
@@ -77,3 +79,15 @@ def test_check_user_exists_error_not_found():
 
     assert exception.value.status_code == HTTPStatus.NOT_FOUND
     assert exception.value.detail == 'User not found'
+
+
+def test_create_db_user(session):
+    new_user = User(
+        username='alice', password='secret', email='alice@example.com'
+    )
+    session.add(new_user)
+    session.commit()
+
+    user = session.scalar(select(User).where(User.username == 'alice'))
+
+    assert user.username == 'alice'
