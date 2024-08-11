@@ -1,45 +1,16 @@
 from http import HTTPStatus
 
+import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from fast_zero.app import app
+from fast_zero.app import app, check_user_exists
 
 
-def test_root_deve_retornar_ok_e_ola_mundo(client):
-    response = client.get('/')
-    assert response.status_code == HTTPStatus.OK  # Assert
-    assert response.json() == {'message': 'Olá Mundo!'}  # Assert
-
-
-def test_root_html_deve_retornar_ok_e_ola_mundo(client):
-    response = client.get('/html')  # Act
-    assert response.status_code == HTTPStatus.OK  # Assert
-    assert (
-        response.text
-        == """
-    <html>
-      <head>
-        <title> Nosso olá mundo!</title>
-      </head>
-      <body>
-        <h1> Olá Mundo </h1>
-      </body>
-    </html>"""
-    )
-    # Assert
-
-
-def test_create_user(client):
+def test_create_user(client, default_user):
     client = TestClient(app)
 
-    response = client.post(
-        '/users/',
-        json={
-            'username': 'alice',
-            'email': 'alice@example.com',
-            'password': 'secret',
-        },
-    )
+    response = client.post('/users/', json=default_user)
 
     assert response.status_code == HTTPStatus.CREATED
     assert response.json() == {
@@ -49,12 +20,16 @@ def test_create_user(client):
     }
 
 
-def test_read_users(client):
+def test_get_user(client, default_user, default_user_public):
+    response = client.get('/users/1')
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == default_user_public
+
+
+def test_read_users(client, default_user_public):
     response = client.get('/users/')
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {
-        'users': [{'username': 'alice', 'email': 'alice@example.com', 'id': 1}]
-    }
+    assert response.json() == {'users': [default_user_public]}
 
 
 def test_update_user(client):
@@ -80,3 +55,25 @@ def test_delete_user(client):
 
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {'message': 'User deleted'}
+
+
+def test_put_user_not_found(client, user_not_found):
+    response = client.put('/users/100', json=user_not_found)
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.json() == {'detail': 'User not found'}
+
+
+def test_delete_user_not_found(client):
+    response = client.delete('/users/100')
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.json() == {'detail': 'User not found'}
+
+
+def test_check_user_exists_error_not_found():
+    with pytest.raises(HTTPException) as exception:
+        check_user_exists(1000)
+
+    assert exception.value.status_code == HTTPStatus.NOT_FOUND
+    assert exception.value.detail == 'User not found'
